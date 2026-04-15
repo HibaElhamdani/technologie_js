@@ -1,24 +1,45 @@
 const axios = require("axios");
 
-// HP des joueurs
+// HP
 let playerHP = 300;
 let botHP = 300;
 
-// récupérer un pokemon aléatoire
-async function getPokemon() {
-  let id = Math.floor(Math.random() * 151) + 1;
-  let res = await axios.get(`https://pokeapi.co/api/v2/pokemon/${id}`);
-  return res.data.name;
+// récupérer Pokémon (nom ou aléatoire)
+async function getPokemon(name = null) {
+  let idOrName = name ? name : Math.floor(Math.random() * 151) + 1;
+
+  let res = await axios.get(`https://pokeapi.co/api/v2/pokemon/${idOrName}`);
+
+  return {
+    name: res.data.name,
+    moves: res.data.moves
+  };
 }
 
-// 5 attaques simples
-let moves = [
-  { name: "Move1", power: 50, accuracy: 0.8, pp: 3 },
-  { name: "Move2", power: 40, accuracy: 0.9, pp: 5 },
-  { name: "Move3", power: 60, accuracy: 0.7, pp: 4 },
-  { name: "Move4", power: 70, accuracy: 0.6, pp: 2 },
-  { name: "Move5", power: 90, accuracy: 0.5, pp: 1 },
-];
+// récupérer détails d'une attaque
+async function getMoveDetails(url) {
+  let res = await axios.get(url);
+
+  return {
+    name: res.data.name,
+    power: res.data.power || 40,
+    accuracy: (res.data.accuracy || 100) / 100,
+    pp: res.data.pp || 5
+  };
+}
+
+// choisir 5 attaques
+async function selectMoves(pokemon) {
+  let selected = [];
+
+  for (let i = 0; i < 5; i++) {
+    let randomMove = pokemon.moves[Math.floor(Math.random() * pokemon.moves.length)];
+    let move = await getMoveDetails(randomMove.move.url);
+    selected.push(move);
+  }
+
+  return selected;
+}
 
 // fonction attaque
 function attack(attacker, defenderHP, move) {
@@ -42,27 +63,39 @@ function attack(attacker, defenderHP, move) {
 // jeu principal
 async function game() {
 
-  let playerPokemon = await getPokemon();
-  let botPokemon = await getPokemon();
+  try {
+    // 🔥 récupérer le Pokémon depuis terminal
+    let playerChoice = process.argv[2]; // argument
 
-  console.log("Player:", playerPokemon);
-  console.log("Bot:", botPokemon);
+    console.log("Choix du joueur :", playerChoice || "aléatoire");
 
-  while (playerHP > 0 && botHP > 0) {
+    let playerPokemon = await getPokemon(playerChoice);
+    let botPokemon = await getPokemon();
 
-    let pMove = moves[Math.floor(Math.random() * moves.length)];
-    let bMove = moves[Math.floor(Math.random() * moves.length)];
+    let playerMoves = await selectMoves(playerPokemon);
+    let botMoves = await selectMoves(botPokemon);
 
-    console.log("\n--- TOUR ---");
+    console.log("\nPlayer:", playerPokemon.name);
+    console.log("Bot:", botPokemon.name);
 
-    botHP = attack("Player", botHP, pMove);
-    playerHP = attack("Bot", playerHP, bMove);
+    while (playerHP > 0 && botHP > 0) {
 
-    console.log("Player HP:", playerHP);
-    console.log("Bot HP:", botHP);
+      let pMove = playerMoves[Math.floor(Math.random() * playerMoves.length)];
+      let bMove = botMoves[Math.floor(Math.random() * botMoves.length)];
+
+      console.log("\n--- TOUR ---");
+      botHP = attack("Player", botHP, pMove);
+      playerHP = attack("Bot", playerHP, bMove);
+
+      console.log("Player HP:", playerHP);
+      console.log("Bot HP:", botHP);
+    }
+
+    console.log(playerHP > 0 ? "Player wins 🎉" : "Bot wins 🤖");
+
+  } catch (error) {
+    console.log("Erreur : Pokémon invalide !");
   }
-
-  console.log(playerHP > 0 ? "Player wins 🎉" : "Bot wins 🤖");
 }
 
 game();
